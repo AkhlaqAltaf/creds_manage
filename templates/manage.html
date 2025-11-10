@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Management - Credential Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+        }
+        
+        .nav-link {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+        
+        .nav-link:hover {
+            background: #5568d3;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .stat-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        
+        .action-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .action-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .process-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .process-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+        
+        .process-btn:active {
+            transform: translateY(0);
+        }
+        
+        .process-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+            display: block;
+        }
+        
+        .message.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+            display: block;
+        }
+        
+        .message.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+            display: block;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .file-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Management Dashboard</h1>
+            <a href="/" class="nav-link">Back to Credentials</a>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🌐</div>
+                <div class="stat-label">Total Domains</div>
+                <div class="stat-value" id="total-domains">{{ stats.total_domains }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-label">Online Domains</div>
+                <div class="stat-value" style="color: #10b981;" id="online-domains">{{ stats.online_domains }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">❌</div>
+                <div class="stat-label">Offline Domains</div>
+                <div class="stat-value" style="color: #ef4444;" id="offline-domains">{{ stats.offline_domains }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">🔑</div>
+                <div class="stat-label">Total Credentials</div>
+                <div class="stat-value" id="total-credentials">{{ stats.total_credentials }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">✓</div>
+                <div class="stat-label">Accessed Credentials</div>
+                <div class="stat-value" style="color: #10b981;" id="accessed-credentials">{{ stats.accessed_credentials }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">📄</div>
+                <div class="stat-label">Unprocessed Files</div>
+                <div class="stat-value" style="color: #f59e0b;" id="unprocessed-files">{{ stats.unprocessed_files }}</div>
+            </div>
+        </div>
+        
+        <div class="action-section">
+            <h2>Process Credential Files</h2>
+            <p style="color: #6b7280; margin-bottom: 20px;">
+                Click the button below to process all credential files in the <code>creds</code> folder.
+                Files will be parsed and stored in the database, then moved to <code>processed_creds</code> folder.
+            </p>
+            
+            <button class="process-btn" id="process-btn" onclick="processFiles()">
+                🔄 Process Files
+            </button>
+        </div>
+        
+        <div class="action-section" style="margin-top: 20px;">
+            <h2>Check All Credentials</h2>
+            <p style="color: #6b7280; margin-bottom: 20px;">
+                Click the button below to mark all domains and credentials as checked (set is_checked to True).
+            </p>
+            
+            <button class="process-btn" id="check-all-btn" onclick="checkAll()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                ✅ Check All
+            </button>
+            
+            <div class="message" id="check-all-message" style="display: none;"></div>
+            
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p style="margin-top: 10px; color: #6b7280;">Processing files...</p>
+            </div>
+            
+            <div id="progress-section" style="display: none; margin-top: 20px;">
+                <div style="background: #f3f4f6; padding: 20px; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <strong style="color: #333;">Processing Progress</strong>
+                        <span id="progress-text" style="color: #667eea; font-weight: 600;">0%</span>
+                    </div>
+                    <div style="background: white; height: 24px; border-radius: 12px; overflow: hidden; margin-bottom: 10px;">
+                        <div id="progress-bar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 14px; color: #6b7280;">
+                        <span id="current-file">Starting...</span>
+                        <span id="processed-count">0 credentials processed</span>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 12px; color: #9ca3af;">
+                        <span id="time-info">Elapsed: 0s | Estimated remaining: --</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="message" id="message" style="display: none;"></div>
+            
+            <div class="file-info" id="file-info" style="display: none;">
+                <strong>Processing Results:</strong>
+                <div id="results"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let statusInterval = null;
+        
+        async function processFiles() {
+            const btn = document.getElementById('process-btn');
+            const loading = document.getElementById('loading');
+            const message = document.getElementById('message');
+            const fileInfo = document.getElementById('file-info');
+            const results = document.getElementById('results');
+            const progressSection = document.getElementById('progress-section');
+            
+            btn.disabled = true;
+            loading.style.display = 'block';
+            progressSection.style.display = 'block';
+            message.className = 'message';
+            fileInfo.style.display = 'none';
+            message.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/process', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    message.className = 'message info';
+                    message.textContent = `Processing started! Processing ${data.total_files} files in background.`;
+                    message.style.display = 'block';
+                    
+                    // Start polling for status
+                    startStatusPolling();
+                } else {
+                    loading.style.display = 'none';
+                    progressSection.style.display = 'none';
+                    btn.disabled = false;
+                    message.className = 'message error';
+                    message.textContent = data.message || 'Error starting processing';
+                    message.style.display = 'block';
+                }
+            } catch (error) {
+                loading.style.display = 'none';
+                progressSection.style.display = 'none';
+                btn.disabled = false;
+                message.className = 'message error';
+                message.textContent = 'Error: ' + error.message;
+                message.style.display = 'block';
+            }
+        }
+        
+        function startStatusPolling() {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+            
+            statusInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/process-status');
+                    const status = await response.json();
+                    
+                    updateProgress(status);
+                    
+                    if (!status.is_processing) {
+                        // Processing completed
+                        clearInterval(statusInterval);
+                        statusInterval = null;
+                        
+                        const btn = document.getElementById('process-btn');
+                        const loading = document.getElementById('loading');
+                        const message = document.getElementById('message');
+                        
+                        loading.style.display = 'none';
+                        btn.disabled = false;
+                        
+                        message.className = 'message success';
+                        message.textContent = `Processing completed! Processed ${status.processed_count} credentials.`;
+                        message.style.display = 'block';
+                        
+                        // Show errors if any
+                        if (status.errors && status.errors.length > 0) {
+                            const fileInfo = document.getElementById('file-info');
+                            const results = document.getElementById('results');
+                            fileInfo.style.display = 'block';
+                            results.innerHTML = `
+                                <p><strong>Errors encountered:</strong></p>
+                                <ul style="margin-top: 10px; padding-left: 20px; max-height: 200px; overflow-y: auto;">
+                                    ${status.errors.slice(0, 20).map(err => `<li style="margin: 5px 0;">${err}</li>`).join('')}
+                                    ${status.errors.length > 20 ? `<li>... and ${status.errors.length - 20} more errors</li>` : ''}
+                                </ul>
+                            `;
+                        }
+                        
+                        // Update stats
+                        updateStats();
+                    }
+                } catch (error) {
+                    console.error('Error fetching status:', error);
+                }
+            }, 1000); // Poll every second
+        }
+        
+        function updateProgress(status) {
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const currentFile = document.getElementById('current-file');
+            const processedCount = document.getElementById('processed-count');
+            const timeInfo = document.getElementById('time-info');
+            
+            if (status.total > 0) {
+                const percentage = (status.progress / status.total) * 100;
+                progressBar.style.width = percentage + '%';
+                progressText.textContent = Math.round(percentage) + '%';
+            }
+            
+            currentFile.textContent = status.current_file || 'Processing...';
+            processedCount.textContent = `${status.processed_count.toLocaleString()} credentials processed`;
+            
+            if (status.elapsed_seconds !== undefined) {
+                const elapsed = formatTime(status.elapsed_seconds);
+                const remaining = status.estimated_remaining_seconds !== undefined 
+                    ? formatTime(status.estimated_remaining_seconds) 
+                    : '--';
+                timeInfo.textContent = `Elapsed: ${elapsed} | Estimated remaining: ${remaining}`;
+            }
+        }
+        
+        function formatTime(seconds) {
+            if (seconds < 60) {
+                return seconds + 's';
+            } else if (seconds < 3600) {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}m ${secs}s`;
+            } else {
+                const hours = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                return `${hours}h ${mins}m`;
+            }
+        }
+        
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                document.getElementById('total-domains').textContent = data.total_domains;
+                document.getElementById('online-domains').textContent = data.online_domains;
+                document.getElementById('offline-domains').textContent = data.offline_domains;
+                document.getElementById('total-credentials').textContent = data.total_credentials;
+                document.getElementById('accessed-credentials').textContent = data.accessed_credentials;
+            } catch (error) {
+                console.error('Error updating stats:', error);
+            }
+        }
+        
+        // Update stats periodically
+        setInterval(updateStats, 30000); // Every 30 seconds
+        
+        async function checkAll() {
+            const btn = document.getElementById('check-all-btn');
+            const message = document.getElementById('check-all-message');
+            
+            btn.disabled = true;
+            message.className = 'message';
+            message.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/check-all', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    message.className = 'message success';
+                    message.textContent = `Successfully checked all items! Updated ${result.domains_updated} domains and ${result.credentials_updated} credentials.`;
+                    message.style.display = 'block';
+                    
+                    // Update stats after a short delay
+                    setTimeout(updateStats, 1000);
+                } else {
+                    message.className = 'message error';
+                    message.textContent = 'Error checking all items';
+                    message.style.display = 'block';
+                }
+            } catch (error) {
+                message.className = 'message error';
+                message.textContent = 'Error: ' + error.message;
+                message.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
+

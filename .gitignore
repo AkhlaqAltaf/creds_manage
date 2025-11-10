@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+processed_creds/
+creds/
+cr/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Credentials (keep folder structure but ignore contents)
+creds/*.txt
+processed_creds/*.txt
+!creds/.gitkeep
+!processed_creds/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+
