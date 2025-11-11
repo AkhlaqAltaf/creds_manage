@@ -204,13 +204,56 @@ def parse_credential_line(line: str) -> Optional[tuple]:
     if not line:
         return None
     
-    # Split from right to left: url:user:password
-    parts = line.rsplit(':', 2)
-    if len(parts) != 3:
+    # More robust parsing that handles passwords with colons
+    # First, try to find the protocol to identify the URL part
+    if line.startswith('http://'):
+        protocol_end = 7
+    elif line.startswith('https://'):
+        protocol_end = 8
+    else:
+        # If no protocol, we'll try to split from the right
+        parts = line.rsplit(':', 2)
+        if len(parts) == 3:
+            url, user, password = parts
+            url = url.strip()
+            user = user.strip()
+            password = password.strip()
+            
+            if url and user and password:
+                # Add protocol if missing
+                if not url.startswith(('http://', 'https://')):
+                    url = f'https://{url}'
+                return (url, user, password)
         return None
     
-    url, user, password = parts
-    url = url.strip()
+    # For URLs with protocol, find the first colon after the protocol
+    # and the last two colons for user:password
+    url_part = line
+    remaining = ""
+    
+    # Find the position after protocol
+    after_protocol = line[protocol_end:]
+    
+    # Split into two parts: everything before last 2 colons and the user:password part
+    last_colon_index = url_part.rfind(':')
+    if last_colon_index == -1:
+        return None
+    
+    # Find the second last colon
+    second_last_colon_index = url_part.rfind(':', 0, last_colon_index)
+    if second_last_colon_index == -1:
+        return None
+    
+    # Extract parts
+    url = line[:second_last_colon_index].strip()
+    user_password_part = line[second_last_colon_index + 1:]
+    
+    # Split user and password
+    user_password_parts = user_password_part.split(':', 1)
+    if len(user_password_parts) != 2:
+        return None
+    
+    user, password = user_password_parts
     user = user.strip()
     password = password.strip()
     
@@ -302,31 +345,27 @@ def process_credentials_background():
                 credentials_batch = []
                 domains_map = {}  # domain_str -> domain_id
                 domains_to_create = set()
-                invalid_line_info = None
+                has_valid_credentials = False
                 
                 # Parse all lines first
                 for line_num, line in enumerate(lines, 1):
                     try:
                         parsed = parse_credential_line(line)
                         if not parsed:
-                            if line.strip():
-                                invalid_line_info = line_num
-                                break
-                            else:
-                                invalid_line_info = line_num
-                                break
+                            continue  # Skip invalid lines but don't fail the entire file
                         
                         url, user, password = parsed
                         domain_str = extract_domain(url)
                         
                         if not domain_str:
-                            invalid_line_info = line_num
-                            break
+                            continue  # Skip if domain extraction fails
                         
                         # Validate domain string
                         if len(domain_str) < 3 or '.' not in domain_str:
-                            invalid_line_info = line_num
-                            break
+                            continue
+                        
+                        # Mark that we have at least one valid credential
+                        has_valid_credentials = True
                         
                         # Collect domain
                         if domain_str not in domains_map and domain_str not in domains_to_create:
@@ -343,24 +382,29 @@ def process_credentials_background():
                             'is_admin': is_admin
                         })
                     except Exception as e:
-                        invalid_line_info = line_num
+                        # Log error but continue processing other lines
                         with processing_lock:
                             processing_status["errors"].append(f"{file_path.name}:{line_num} - {str(e)}")
-                        break
+                        continue
                 
-                if invalid_line_info or not credentials_batch:
-                    # Move invalid or empty files to not_useful directory
+                # If no valid credentials found, move to not_useful
+                if not has_valid_credentials:
                     try:
                         shutil.move(str(file_path), str(not_useful_dir / file_path.name))
+                        with processing_lock:
+                            processing_status["errors"].append(f"{file_path.name} - No valid credentials found")
                     except Exception as e:
                         with processing_lock:
                             processing_status["errors"].append(f"{file_path.name} - Move to not_useful error: {str(e)}")
-                    else:
-                        if invalid_line_info:
-                            with processing_lock:
-                                processing_status["errors"].append(
-                                    f"{file_path.name} - Invalid format at line {invalid_line_info}"
-                                )
+                    continue
+                
+                # If we have valid credentials but the batch is empty due to filtering, still process
+                if not credentials_batch:
+                    try:
+                        shutil.move(str(file_path), str(processed_dir / file_path.name))
+                    except Exception as e:
+                        with processing_lock:
+                            processing_status["errors"].append(f"{file_path.name} - Move error: {str(e)}")
                     continue
                 
                 # Bulk fetch/create domains
@@ -383,7 +427,6 @@ def process_credentials_background():
                                 db.add(domain_obj)
                             db.flush()
                             
-                            # Refresh to get IDs (bulk_save_objects doesn't populate IDs)
                             # Query back the newly created domains to get their IDs
                             new_domain_names = [d.domain for d in new_domains]
                             if new_domain_names:
@@ -414,8 +457,6 @@ def process_credentials_background():
                             creds_by_domain[cred_data['domain']].append(cred_data)
                     
                     # Process each domain's credentials in batches to avoid SQLite parameter limit
-                    # SQLite has limit of ~999 variables, so we batch in chunks of 300
-                    # (300 urls + 300 users = 600 variables, safe margin)
                     BATCH_SIZE = 300
                     
                     for domain_str, cred_list in creds_by_domain.items():
@@ -482,7 +523,7 @@ def process_credentials_background():
                 # Commit after each file for safety
                 db.commit()
                 
-                # Move file to processed folder
+                # Move file to processed folder (since it has valid credentials)
                 try:
                     shutil.move(str(file_path), str(processed_dir / file_path.name))
                 except Exception as e:
@@ -702,4 +743,3 @@ async def get_stats(db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
