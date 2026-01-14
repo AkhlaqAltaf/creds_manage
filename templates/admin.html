@@ -1,0 +1,265 @@
+
+
+ {% extends "base.html" %}
+
+
+  {% block title %}Admin Panel{% endblock %}
+
+
+    {% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', path='css/admin.css') }}">
+    {% endblock %}
+
+    {% block extra_js %}
+    <script src="{{ url_for('static', path='js/admin.js') }}"></script>
+    {% endblock %}
+
+    {% block content %}
+
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Admin Panel</h1>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/manage" class="nav-link">Manage</a>
+                <a href="/logout" class="nav-link">Logout</a>
+            </div>
+        </div>
+        
+        <!-- User Management -->
+        <div class="section">
+            <h2>👥 User Management</h2>
+            <div id="userMessage"></div>
+            <form id="userForm" onsubmit="createUser(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="role">Role</label>
+                        <select id="role" name="role" required>
+                            <option value="viewer">Viewer</option>
+                            <option value="creator">Creator</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <button type="submit" class="btn btn-primary">Create User</button>
+                    </div>
+                </div>
+            </form>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTable">
+                    {% for user in users %}
+                    <tr id="user-row-{{ user.id }}">
+                        <td>{{ user.id }}</td>
+                        <td id="user-username-{{ user.id }}">{{ user.username }}</td>
+                        <td id="user-role-{{ user.id }}"><span class="badge badge-{{ user.role.value }}">{{ user.role.value }}</span></td>
+                        <td>{{ "Active" if user.is_active else "Inactive" }}</td>
+                        <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px; margin-right: 5px;" onclick="editUser({{ user.id }}, '{{ user.username }}', '{{ user.role.value }}')">Edit</button>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="deleteUser({{ user.id }})" {{ 'disabled' if user.id == current_user.id else '' }}>Delete</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- Edit User Modal -->
+            <div id="editUserModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
+                    <h3 style="margin-bottom: 20px;">Edit User</h3>
+                    <form id="editUserForm" onsubmit="updateUser(event)">
+                        <input type="hidden" id="editUserId" name="user_id">
+                        <div class="form-group">
+                            <label for="editUsername">Username</label>
+                            <input type="text" id="editUsername" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editPassword">New Password (leave blank to keep current)</label>
+                            <input type="password" id="editPassword" name="password">
+                        </div>
+                        <div class="form-group">
+                            <label for="editRole">Role</label>
+                            <select id="editRole" name="role" required>
+                                <option value="viewer">Viewer</option>
+                                <option value="creator">Creator</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn btn-primary">Update</button>
+                            <button type="button" class="btn" style="background: #6b7280; color: white;" onclick="closeEditUserModal()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Domain Assignment -->
+        <div class="section">
+            <h2>🔗 Domain Assignment</h2>
+            <div id="assignmentMessage"></div>
+            <form id="assignmentForm" onsubmit="assignDomain(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="assignUser">User</label>
+                        <select id="assignUser" name="user_id" required>
+                            {% for user in users %}
+                            <option value="{{ user.id }}">{{ user.username }} ({{ user.role.value }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="assignDomain">Domain</label>
+                        <select id="assignDomain" name="domain_id" required>
+                            {% for domain in domains %}
+                            <option value="{{ domain.id }}">{{ domain.domain }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <button type="submit" class="btn btn-success">Assign Domain</button>
+                    </div>
+                </div>
+            </form>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Domain</th>
+                        <th>Assigned At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="assignmentsTable">
+                    {% for assignment in assignments %}
+                    <tr>
+                        <td>{{ assignment.user.username }}</td>
+                        <td>{{ assignment.domain.domain }}</td>
+                        <td>{{ assignment.assigned_at.strftime('%Y-%m-%d %H:%M') if assignment.assigned_at else 'N/A' }}</td>
+                        <td>
+                            <button class="btn btn-danger" onclick="removeAssignment({{ assignment.id }})">Remove</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Credential Status Management -->
+        <div class="section">
+            <h2>🏷️ Credential Status Management</h2>
+            <div id="statusMessage"></div>
+            <form id="statusForm" onsubmit="createStatus(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="statusName">Status Name</label>
+                        <input type="text" id="statusName" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="statusDescription">Description</label>
+                        <input type="text" id="statusDescription" name="description">
+                    </div>
+                    <div class="form-group">
+                        <label for="statusColor">Color (Hex)</label>
+                        <input type="color" id="statusColor" name="color" value="#667eea">
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <button type="submit" class="btn btn-primary">Create Status</button>
+                    </div>
+                </div>
+            </form>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Color</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="statusesTable">
+                    {% for status in statuses %}
+                    <tr id="status-row-{{ status.id }}">
+                        <td>{{ status.id }}</td>
+                        <td id="status-name-{{ status.id }}">{{ status.name }}</td>
+                        <td id="status-desc-{{ status.id }}">{{ status.description or 'N/A' }}</td>
+                        <td id="status-color-{{ status.id }}">
+                            <span style="display: inline-block; width: 30px; height: 20px; background: {{ status.color }}; border-radius: 3px;"></span>
+                            {{ status.color }}
+                        </td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px; margin-right: 5px;" onclick="editStatus({{ status.id }}, '{{ status.name }}', '{{ status.description or '' }}', '{{ status.color }}')">Edit</button>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="deleteStatus({{ status.id }})">Delete</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- Edit Status Modal -->
+            <div id="editStatusModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
+                    <h3 style="margin-bottom: 20px;">Edit Status</h3>
+                    <form id="editStatusForm" onsubmit="updateStatus(event)">
+                        <input type="hidden" id="editStatusId" name="status_id">
+                        <div class="form-group">
+                            <label for="editStatusName">Status Name</label>
+                            <input type="text" id="editStatusName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editStatusDescription">Description</label>
+                            <input type="text" id="editStatusDescription" name="description">
+                        </div>
+                        <div class="form-group">
+                            <label for="editStatusColor">Color</label>
+                            <input type="color" id="editStatusColor" name="color" value="#667eea">
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn btn-primary">Update</button>
+                            <button type="button" class="btn" style="background: #6b7280; color: white;" onclick="closeEditStatusModal()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- File Upload -->
+        <div class="section">
+            <h2>📤 Upload Credential Files</h2>
+            <div id="uploadMessage"></div>
+            <div class="file-upload">
+                <form id="uploadForm" onsubmit="uploadFiles(event)">
+                    <input type="file" id="fileInput" name="files" multiple accept=".txt,.zip" required>
+                    <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Upload Files</button>
+                </form>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">
+                Upload .txt or .zip files containing credentials. Files will be saved to the creds folder and can be processed from the Manage page.
+            </p>
+        </div>
+    </div>
+    
+  
+  {% endblock %}

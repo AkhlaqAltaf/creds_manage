@@ -4,24 +4,27 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
 venv/
+env/
 ENV/
 .venv
-processed_creds/
-creds/
-cr/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Credentials (keep folder structure but ignore contents)
-creds/*.txt
-processed_creds/*.txt
-!creds/.gitkeep
-!processed_creds/.gitkeep
 
 # IDE
 .vscode/
@@ -34,7 +37,24 @@ processed_creds/*.txt
 .DS_Store
 Thumbs.db
 
+# Database
+data/*.db
+data/*.db-journal
+*.db
+*.db-journal
+
 # Logs
 *.log
 
+# Environment variables
+.env
+.env.local
 
+# Credentials (sensitive)
+creds/*.txt
+creds/*.zip
+processed_creds/*.txt
+
+# Temporary files
+*.tmp
+*.bak

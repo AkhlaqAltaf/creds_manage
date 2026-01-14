@@ -1,0 +1,52 @@
+ {% extends "base.html" %}
+
+
+  {% block title %}Login{% endblock %}
+
+
+    {% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', path='css/login.css') }}">
+    {% endblock %}
+
+    {% block extra_js %}
+    <script src="{{ url_for('static', path='js/login.js') }}"></script>
+    {% endblock %}
+
+    {% block content %}
+
+    <div class="login-container">
+        <div class="login-header">
+            <h1>🔐 Credential Manager</h1>
+            <p>Please login to continue</p>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+            
+            <div class="captcha-group">
+                <div class="captcha-challenge" id="captchaChallenge"></div>
+                <input type="hidden" id="captchaId" name="captcha_id">
+                <input type="text" class="captcha-input" id="captchaAnswer" name="captcha_answer" 
+                       placeholder="Enter the answer" required autocomplete="off">
+                <div class="refresh-captcha">
+                    <button type="button" onclick="refreshCaptcha()">🔄 Refresh CAPTCHA</button>
+                </div>
+            </div>
+            
+            <button type="submit" class="login-btn" id="loginBtn">Login</button>
+        </form>
+    </div>
+    
+
+{%endblock%}
+
