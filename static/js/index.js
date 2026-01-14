@@ -9,6 +9,436 @@
 
 
 
+document.addEventListener('click', function(event) {
+    if (event.target.classList.contains('copy-btn')) {
+        let textToCopy;
+        
+        if (event.target.hasAttribute('data-text')) {
+            textToCopy = event.target.getAttribute('data-text');
+        } else {
+            const spanElement = event.target.previousElementSibling;
+            if (spanElement && spanElement.tagName === 'SPAN') {
+                textToCopy = spanElement.textContent;
+            } else {
+                const parent = event.target.parentElement;
+                const textNodes = Array.from(parent.childNodes)
+                    .filter(node => node.nodeType === Node.TEXT_NODE)
+                    .map(node => node.textContent.trim())
+                    .filter(text => text.length > 0);
+                if (textNodes.length > 0) {
+                    textToCopy = textNodes[0];
+                }
+            }
+        }
+        
+        if (textToCopy) {
+            copyToClipboard(textToCopy, event.target);
+        }
+    }
+    
+    if (event.target.type === 'checkbox' && event.target.hasAttribute('data-credential-id')) {
+        const credentialId = event.target.getAttribute('data-credential-id');
+        const isChecked = event.target.checked;
+        toggleCredentialChecked(credentialId, isChecked, event.target);
+    }
+});
+
+
+
+
+
+
+function copyToClipboard(text, button) {
+    let textToCopy = text;
+    
+    if (text.startsWith('"') && text.endsWith('"')) {
+        try {
+            textToCopy = JSON.parse(text);
+        } catch (e) {
+            textToCopy = text.slice(1, -1);
+        }
+    }
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const originalText = button.textContent;
+        const originalBackground = button.style.background;
+        button.textContent = 'Copied!';
+        button.style.background = '#10b981';
+        button.style.color = 'white';
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.background = originalBackground;
+            button.style.color = '';
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+        // Fallback method
+        const textArea = document.createElement('textarea');
+        textArea.value = textToCopy;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.style.background = '#10b981';
+        button.style.color = 'white';
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.background = '';
+            button.style.color = '';
+        }, 2000);
+    });
+}
+
+
+
+async function loadMoreCredentials(domainId, currentCount) {
+    const loadMoreBtn = document.getElementById('load-more-' + domainId);
+    const loadingMore = document.getElementById('loading-more-' + domainId);
+    const tbody = document.getElementById('creds-tbody-' + domainId);
+    
+    if (!tbody || !loadMoreBtn) return;
+    
+    // Initialize or get current loaded count for this domain
+    if (!loadedCredsCount[domainId]) {
+        loadedCredsCount[domainId] = currentCount;
+    }
+    
+    loadMoreBtn.disabled = true;
+    loadMoreBtn.style.opacity = '0.7';
+    loadingMore.style.display = 'block';
+    
+    try {
+        // Get current filter state
+        const urlParams = new URLSearchParams(window.location.search);
+        const accessedOnly = urlParams.get('accessed_only') === 'true' || document.getElementById('accessedOnly')?.checked;
+        const checkedFilter = urlParams.get('checked_filter') || 'all';
+        
+        // Use the tracked count instead of currentCount
+        const offset = loadedCredsCount[domainId];
+        
+        const response = await fetch(`/api/domain/${domainId}/credentials?offset=${offset}&limit=50&accessed_only=${accessedOnly}&checked_filter=${checkedFilter}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Add new credentials to table
+        data.credentials.forEach(cred => {
+            const row = document.createElement('tr');
+            row.className = 'credential-row'; // Add consistent class
+            
+            // Escape HTML properly
+            const escapedUrl = escapeHtml(cred.url);
+            const escapedUser = escapeHtml(cred.user);
+            const escapedPassword = escapeHtml(cred.password);
+            
+            row.innerHTML = `
+                <td style="padding: 10px; vertical-align: middle;">
+                    <input type="checkbox" 
+                           class="credential-select-checkbox"
+                           data-credential-id="${cred.id}"
+                           data-domain-id="${domainId}"
+                           style="width: 20px; height: 20px; cursor: pointer;">
+                </td>
+                <td style="padding: 10px; vertical-align: middle;">
+                    <input type="checkbox" ${cred.is_checked ? 'checked' : ''} 
+                           data-credential-id="${cred.id}"
+                           style="width: 20px; height: 20px; cursor: pointer;">
+                </td>
+                <td class="url-cell" style="padding: 10px; vertical-align: middle; max-width: 300px; word-break: break-all;">
+                    <a href="${escapedUrl}" target="_blank" class="url-link">${escapedUrl}</a>
+                </td>
+                <td style="padding: 10px; vertical-align: middle; max-width: 200px; word-break: break-all;">
+                    <span>${escapedUser}</span>
+                    <button class="copy-btn" data-text="${escapedUser}" style="margin-left: 8px;">Copy</button>
+                </td>
+                <td style="padding: 10px; vertical-align: middle; max-width: 200px; word-break: break-all;">
+                    <span>${escapedPassword}</span>
+                    <button class="copy-btn" data-text="${escapedPassword}" style="margin-left: 8px;">Copy</button>
+                </td>
+                <td style="padding: 10px; vertical-align: middle;">
+                    <input type="checkbox" ${cred.is_accessed ? 'checked' : ''} 
+                           data-credential-access-id="${cred.id}"
+                           style="width: 20px; height: 20px; cursor: pointer;">
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        // Update the loaded count
+        loadedCredsCount[domainId] += data.credentials.length;
+        
+        // Update button or hide if all loaded
+        if (loadedCredsCount[domainId] >= data.total) {
+            loadMoreBtn.style.display = 'none';
+        } else {
+            loadMoreBtn.textContent = `Load More (Showing ${loadedCredsCount[domainId]} of ${data.total})`;
+            loadMoreBtn.disabled = false;
+            loadMoreBtn.style.opacity = '1';
+        }
+        
+        // Attach event listeners to new checkboxes
+        attachEventListenersToNewRows(domainId);
+        
+    } catch (error) {
+        console.error('Error loading more credentials:', error);
+        alert('Error loading more credentials: ' + error.message);
+        loadMoreBtn.disabled = false;
+        loadMoreBtn.style.opacity = '1';
+    } finally {
+        loadingMore.style.display = 'none';
+    }
+}
+
+
+
+// Function to attach event listeners to new rows
+function attachEventListenersToNewRows(domainId) {
+    // Get all newly added checkboxes for this domain
+    const checkboxes = document.querySelectorAll(`#creds-tbody-${domainId} input[data-credential-id]`);
+    
+    checkboxes.forEach(checkbox => {
+        // Remove any existing event listeners
+        const newCheckbox = checkbox.cloneNode(true);
+        checkbox.parentNode.replaceChild(newCheckbox, checkbox);
+        
+        // Add event listener for checked status
+        if (newCheckbox.hasAttribute('data-credential-id') && !newCheckbox.classList.contains('credential-select-checkbox')) {
+            newCheckbox.addEventListener('change', function() {
+                const credentialId = this.getAttribute('data-credential-id');
+                const isChecked = this.checked;
+                toggleCredentialChecked(credentialId, isChecked, this);
+            });
+        }
+        
+        // Add event listener for accessed status
+        if (newCheckbox.hasAttribute('data-credential-access-id')) {
+            newCheckbox.addEventListener('change', function() {
+                const credentialId = this.getAttribute('data-credential-access-id');
+                const isAccessed = this.checked;
+                toggleAccessed(credentialId, isAccessed, this);
+            });
+        }
+    });
+    
+    // Also attach to credential selection checkboxes
+    const selectCheckboxes = document.querySelectorAll(`#creds-tbody-${domainId} .credential-select-checkbox`);
+    selectCheckboxes.forEach(checkbox => {
+        const newCheckbox = checkbox.cloneNode(true);
+        checkbox.parentNode.replaceChild(newCheckbox, checkbox);
+        
+        newCheckbox.addEventListener('change', function() {
+            updateSelection();
+        });
+    });
+}
+
+
+
+// Update toggleCredentialChecked to accept element parameter
+async function toggleCredentialChecked(credentialId, isChecked, element) {
+    const checkbox = element || event.target;
+    
+    try {
+        const response = await fetch(`/api/credential/${credentialId}/toggle-checked`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ is_checked: isChecked })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            // Revert checkbox
+            checkbox.checked = !isChecked;
+            showNotification('Error updating check status', 'error');
+        } else {
+            // Success - update UI if needed
+            if (result.is_checked !== undefined) {
+                checkbox.checked = result.is_checked;
+            }
+            showNotification('Status updated successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Error updating check status:', error);
+        // Revert checkbox on error
+        checkbox.checked = !isChecked;
+        showNotification('Error updating check status: ' + error.message, 'error');
+    }
+}
+
+
+
+
+// Update toggleAccessed to accept element parameter
+async function toggleAccessed(credentialId, isAccessed, element) {
+    const checkbox = element || event.target;
+    
+    try {
+        const response = await fetch(`/api/credential/${credentialId}/toggle-accessed`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (!result.success) {
+            // Revert checkbox
+            checkbox.checked = !isAccessed;
+            showNotification('Error updating access status', 'error');
+        } else {
+            showNotification('Access status updated!', 'success');
+        }
+    } catch (error) {
+        console.error('Error updating access status:', error);
+        checkbox.checked = !isAccessed;
+        showNotification('Error updating access status', 'error');
+    }
+}
+
+
+
+// Helper function for notifications
+function showNotification(message, type) {
+    // Remove existing notification
+    const existingNotification = document.querySelector('.notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    // Add styles if not already present
+    if (!document.querySelector('#notification-styles')) {
+        const style = document.createElement('style');
+        style.id = 'notification-styles';
+        style.textContent = `
+            .notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 6px;
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                min-width: 300px;
+                max-width: 400px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                animation: slideIn 0.3s ease;
+            }
+            .notification-success {
+                background: #10b981;
+                border-left: 4px solid #059669;
+            }
+            .notification-error {
+                background: #ef4444;
+                border-left: 4px solid #dc2626;
+            }
+            .notification button {
+                background: none;
+                border: none;
+                color: white;
+                font-size: 20px;
+                cursor: pointer;
+                margin-left: 15px;
+                padding: 0;
+                line-height: 1;
+            }
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(notification);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+// Initialize event listeners when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize checkboxes event listeners
+    initializeCheckboxListeners();
+    
+    // Check domain statuses
+    setTimeout(() => {
+        checkDomainStatuses();
+    }, 500);
+});
+
+function initializeCheckboxListeners() {
+    // Add event listeners to existing checkboxes
+    document.querySelectorAll('input[data-credential-id]').forEach(checkbox => {
+        if (!checkbox.classList.contains('credential-select-checkbox')) {
+            checkbox.addEventListener('change', function() {
+                const credentialId = this.getAttribute('data-credential-id');
+                const isChecked = this.checked;
+                toggleCredentialChecked(credentialId, isChecked, this);
+            });
+        }
+    });
+    
+    // Add event listeners to access checkboxes
+    document.querySelectorAll('input[data-credential-access-id]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const credentialId = this.getAttribute('data-credential-access-id');
+            const isAccessed = this.checked;
+            toggleAccessed(credentialId, isAccessed, this);
+        });
+    });
+    
+    // Add event listeners to selection checkboxes
+    document.querySelectorAll('.credential-select-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelection);
+    });
+}
+
+// Update escapeHtml function to be more robust
+function escapeHtml(text) {
+    if (text == null) return '';
+    
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+// Fix the backend API endpoint for toggle-checked
+// Add this to your manage.py (FastAPI router)
+
+
+
         // Selection management
 let selectedItems = {
     domains: new Set(),
@@ -359,51 +789,51 @@ function getAllSelectedCredentialIds() {
             }
         }
         
-        function copyToClipboard(text, button) {
-            navigator.clipboard.writeText(text).then(() => {
-                const originalText = button.textContent;
-                button.textContent = 'Copied!';
-                button.style.background = '#10b981';
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.style.background = '#667eea';
-                }, 2000);
-            });
-        }
+        // function copyToClipboard(text, button) {
+        //     navigator.clipboard.writeText(text).then(() => {
+        //         const originalText = button.textContent;
+        //         button.textContent = 'Copied!';
+        //         button.style.background = '#10b981';
+        //         setTimeout(() => {
+        //             button.textContent = originalText;
+        //             button.style.background = '#667eea';
+        //         }, 2000);
+        //     });
+        // }
         
         
-        async function toggleAccessed(credentialId, isAccessed) {
-            const checkbox = event.target;
-            try {
-                const response = await fetch(`/api/credential/${credentialId}/toggle-accessed`, {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                if (!result.success) {
-                    // Revert checkbox
-                    checkbox.checked = !isAccessed;
-                }
-            } catch (error) {
-                alert('Error updating access status');
-                checkbox.checked = !isAccessed;
-            }
-        }
+        // async function toggleAccessed(credentialId, isAccessed) {
+        //     const checkbox = event.target;
+        //     try {
+        //         const response = await fetch(`/api/credential/${credentialId}/toggle-accessed`, {
+        //             method: 'POST'
+        //         });
+        //         const result = await response.json();
+        //         if (!result.success) {
+        //             // Revert checkbox
+        //             checkbox.checked = !isAccessed;
+        //         }
+        //     } catch (error) {
+        //         alert('Error updating access status');
+        //         checkbox.checked = !isAccessed;
+        //     }
+        // }
         
-        async function toggleCredentialChecked(credentialId, isChecked) {
-            const checkbox = event.target;
-            try {
-                const response = await fetch(`/api/credential/${credentialId}/toggle-checked`, {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                if (!result.success) {
-                    checkbox.checked = !isChecked;
-                }
-            } catch (error) {
-                alert('Error updating check status');
-                checkbox.checked = !isChecked;
-            }
-        }
+        // async function toggleCredentialChecked(credentialId, isChecked) {
+        //     const checkbox = event.target;
+        //     try {
+        //         const response = await fetch(`/api/credential/${credentialId}/toggle-checked`, {
+        //             method: 'POST'
+        //         });
+        //         const result = await response.json();
+        //         if (!result.success) {
+        //             checkbox.checked = !isChecked;
+        //         }
+        //     } catch (error) {
+        //         alert('Error updating check status');
+        //         checkbox.checked = !isChecked;
+        //     }
+        // }
         
         async function toggleDomainChecked(domainId, isChecked) {
             const checkbox = event.target;
@@ -499,82 +929,85 @@ function getAllSelectedCredentialIds() {
         // Add a global variable to track loaded counts per domain
 const loadedCredsCount = {};
 
-async function loadMoreCredentials(domainId, currentCount) {
-    const loadMoreBtn = document.getElementById('load-more-' + domainId);
-    const loadingMore = document.getElementById('loading-more-' + domainId);
-    const tbody = document.getElementById('creds-tbody-' + domainId);
+
+
+
+// async function loadMoreCredentials(domainId, currentCount) {
+//     const loadMoreBtn = document.getElementById('load-more-' + domainId);
+//     const loadingMore = document.getElementById('loading-more-' + domainId);
+//     const tbody = document.getElementById('creds-tbody-' + domainId);
     
-    if (!tbody || !loadMoreBtn) return;
+//     if (!tbody || !loadMoreBtn) return;
     
-    // Initialize or get current loaded count for this domain
-    if (!loadedCredsCount[domainId]) {
-        loadedCredsCount[domainId] = currentCount;
-    }
+//     // Initialize or get current loaded count for this domain
+//     if (!loadedCredsCount[domainId]) {
+//         loadedCredsCount[domainId] = currentCount;
+//     }
     
-    loadMoreBtn.disabled = true;
-    loadingMore.style.display = 'block';
+//     loadMoreBtn.disabled = true;
+//     loadingMore.style.display = 'block';
     
-    try {
-        // Get current filter state
-        const urlParams = new URLSearchParams(window.location.search);
-        const accessedOnly = urlParams.get('accessed_only') === 'true' || document.getElementById('accessedOnly')?.checked;
-        const checkedFilter = urlParams.get('checked_filter') || 'all';
+//     try {
+//         // Get current filter state
+//         const urlParams = new URLSearchParams(window.location.search);
+//         const accessedOnly = urlParams.get('accessed_only') === 'true' || document.getElementById('accessedOnly')?.checked;
+//         const checkedFilter = urlParams.get('checked_filter') || 'all';
         
-        // Use the tracked count instead of currentCount
-        const offset = loadedCredsCount[domainId];
+//         // Use the tracked count instead of currentCount
+//         const offset = loadedCredsCount[domainId];
         
-        const response = await fetch(`/api/domain/${domainId}/credentials?offset=${offset}&limit=50&accessed_only=${accessedOnly}&checked_filter=${checkedFilter}`);
-        const data = await response.json();
+//         const response = await fetch(`/api/domain/${domainId}/credentials?offset=${offset}&limit=50&accessed_only=${accessedOnly}&checked_filter=${checkedFilter}`);
+//         const data = await response.json();
         
-        // Add new credentials to table
-        data.credentials.forEach(cred => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>
-                    <input type="checkbox" ${cred.is_checked ? 'checked' : ''} 
-                           class="credential-select-checkbox"
-                           data-credential-id="${cred.id}"
-                           onchange="toggleCredentialChecked(${cred.id}, this.checked)"
-                           style="width: 20px; height: 20px; cursor: pointer;">
-                </td>
-                <td class="url-cell">
-                    <a href="${escapeHtml(cred.url)}" target="_blank" class="url-link">${escapeHtml(cred.url)}</a>
-                </td>
-                <td>
-                    ${escapeHtml(cred.user)}
-                    <button class="copy-btn" onclick="copyToClipboard(${JSON.stringify(cred.user)}, this)">Copy</button>
-                </td>
-                <td>
-                    <span>${escapeHtml(cred.password)}</span>
-                    <button class="copy-btn" onclick="copyToClipboard(${JSON.stringify(cred.password)}, this)">Copy</button>
-                </td>
-                <td>
-                    <input type="checkbox" ${cred.is_accessed ? 'checked' : ''} 
-                           onchange="toggleAccessed(${cred.id}, this.checked)"
-                           style="width: 20px; height: 20px; cursor: pointer;">
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
+//         // Add new credentials to table
+//         data.credentials.forEach(cred => {
+//             const row = document.createElement('tr');
+//             row.innerHTML = `
+//                 <td>
+//                     <input type="checkbox" ${cred.is_checked ? 'checked' : ''} 
+//                            class="credential-select-checkbox"
+//                            data-credential-id="${cred.id}"
+//                            onchange="toggleCredentialChecked(${cred.id}, this.checked)"
+//                            style="width: 20px; height: 20px; cursor: pointer;">
+//                 </td>
+//                 <td class="url-cell">
+//                     <a href="${escapeHtml(cred.url)}" target="_blank" class="url-link">${escapeHtml(cred.url)}</a>
+//                 </td>
+//                 <td>
+//                     ${escapeHtml(cred.user)}
+//                     <button class="copy-btn" onclick="copyToClipboard(${JSON.stringify(cred.user)}, this)">Copy</button>
+//                 </td>
+//                 <td>
+//                     <span>${escapeHtml(cred.password)}</span>
+//                     <button class="copy-btn" onclick="copyToClipboard(${JSON.stringify(cred.password)}, this)">Copy</button>
+//                 </td>
+//                 <td>
+//                     <input type="checkbox" ${cred.is_accessed ? 'checked' : ''} 
+//                            onchange="toggleAccessed(${cred.id}, this.checked)"
+//                            style="width: 20px; height: 20px; cursor: pointer;">
+//                 </td>
+//             `;
+//             tbody.appendChild(row);
+//         });
         
-        // Update the loaded count
-        loadedCredsCount[domainId] += data.credentials.length;
+//         // Update the loaded count
+//         loadedCredsCount[domainId] += data.credentials.length;
         
-        // Update button or hide if all loaded
-        if (loadedCredsCount[domainId] >= data.total) {
-            loadMoreBtn.style.display = 'none';
-        } else {
-            loadMoreBtn.textContent = `Load More (Showing ${loadedCredsCount[domainId]} of ${data.total})`;
-            loadMoreBtn.disabled = false;
-        }
+//         // Update button or hide if all loaded
+//         if (loadedCredsCount[domainId] >= data.total) {
+//             loadMoreBtn.style.display = 'none';
+//         } else {
+//             loadMoreBtn.textContent = `Load More (Showing ${loadedCredsCount[domainId]} of ${data.total})`;
+//             loadMoreBtn.disabled = false;
+//         }
         
-    } catch (error) {
-        alert('Error loading more credentials: ' + error.message);
-        loadMoreBtn.disabled = false;
-    } finally {
-        loadingMore.style.display = 'none';
-    }
-}
+//     } catch (error) {
+//         alert('Error loading more credentials: ' + error.message);
+//         loadMoreBtn.disabled = false;
+//     } finally {
+//         loadingMore.style.display = 'none';
+//     }
+// }
 
 
 

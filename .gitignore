@@ -54,6 +54,11 @@ data/*.db-journal
 creds/*.txt
 creds/*.zip
 processed_creds/*.txt
+creds/
+processed_creds/
+extra/
+not_useful/
+
 
 # Temporary files
 *.tmp
