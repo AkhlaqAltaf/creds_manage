@@ -1,0 +1,5 @@
+
+
+client --> trpc --> server(Djangpo)-->kubernetes
+
+(Client to trpc procedural calls ) (trpc to server api calls and localhost communication) 

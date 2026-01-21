@@ -9,70 +9,7 @@
     {% block extra_css %}
     <link rel="stylesheet" href="{{ url_for('static', path='css/index.css') }}">
 
-    <style>
-    .selection-header {
-        background: #f8fafc;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        border-left: 4px solid #667eea;
-        display: none;
-    }
-    
-    .selection-info {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 15px;
-    }
-    
-    .selected-count {
-        font-weight: 600;
-        color: #667eea;
-    }
-    
-    .action-buttons {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
-    
-    .action-btn {
-        padding: 8px 16px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    
-    .delete-btn { background: #fef2f2; color: #dc2626; }
-    .delete-btn:hover { background: #fee2e2; }
-    
-    .check-btn { background: #f0f9ff; color: #0284c7; }
-    .check-btn:hover { background: #e0f2fe; }
-    
-    .export-btn { background: #f0fdf4; color: #16a34a; }
-    .export-btn:hover { background: #dcfce7; }
-    
-    .bulk-checkbox {
-        margin-right: 10px;
-    }
-    
-    .domain-select-checkbox {
-        margin-right: 8px;
-    }
-    
-    .domain-header-select {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-</style>
+
     {% endblock %}
 
     {% block extra_js %}

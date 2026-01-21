@@ -1,9 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from config.settings import DATABASE_URL
-
-# Use database URL from config
 SQLALCHEMY_DATABASE_URL = DATABASE_URL
+
+
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 
@@ -12,19 +12,16 @@ engine = create_engine(
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
+
+
 
 def init_db():
     """Initialize database tables"""
-    from src.core.models import Domain, Credential, User, UserRole, DomainAssignment, CredentialStatus
+    from src.core.models import User, UserRole, CredentialStatus
     from sqlalchemy import inspect, text
-    from src.core.auth import get_password_hash
-    
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
-    
-    # Add is_checked column to domains if it doesn't exist
+    from src.core.auth import get_password_hash    
+    Base.metadata.create_all(bind=engine)    
     inspector = inspect(engine)
     domain_columns = [col['name'] for col in inspector.get_columns('domains')] if inspector.has_table('domains') else []
     if 'is_checked' not in domain_columns:
@@ -32,20 +29,15 @@ def init_db():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE domains ADD COLUMN is_checked BOOLEAN DEFAULT 0"))
         except Exception as e:
-            # Column might already exist or error, ignore
-            pass
-    
-    # Add is_checked column to credentials if it doesn't exist
+            pass    
     cred_columns = [col['name'] for col in inspector.get_columns('credentials')] if inspector.has_table('credentials') else []
     if 'is_checked' not in cred_columns:
         try:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE credentials ADD COLUMN is_checked BOOLEAN DEFAULT 0"))
         except Exception as e:
-            # Column might already exist or error, ignore
             pass
     
-    # Add status_id column to credentials if it doesn't exist
     if 'status_id' not in cred_columns:
         try:
             with engine.begin() as conn:
@@ -53,7 +45,6 @@ def init_db():
         except Exception as e:
             pass
     
-    # Add comment column to domains if it doesn't exist
     if 'comment' not in domain_columns:
         try:
             with engine.begin() as conn:
@@ -61,14 +52,13 @@ def init_db():
         except Exception as e:
             pass
     
-    # Create default admin user if it doesn't exist
     db = SessionLocal()
     try:
         admin_user = db.query(User).filter(User.username == "admin").first()
         if not admin_user:
             admin_user = User(
                 username="admin",
-                password_hash=get_password_hash("admin123"),  # Change this password!
+                password_hash=get_password_hash("admin123"),  
                 role=UserRole.ADMIN,
                 is_active=True
             )
@@ -77,7 +67,6 @@ def init_db():
             print("Default admin user created: username='admin', password='admin123'")
             print("⚠️  IMPORTANT: Change the admin password immediately!")
         
-        # Create default status options if they don't exist
         default_statuses = [
             ("Active", "Active credentials", "#10b981"),
             ("Inactive", "Inactive credentials", "#ef4444"),
