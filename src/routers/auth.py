@@ -74,6 +74,6 @@ async def get_captcha():
 
 @router.get("/logout")
 async def logout():
-    """Logout user"""
     response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie(key="access_token", path="/")
     return response
